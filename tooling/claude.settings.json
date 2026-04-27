@@ -1,0 +1,29 @@
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://localhost:8787/anthropic",
+    "ANTHROPIC_API_KEY": "set-via-secret-manager-or-shell",
+    "ANTHROPIC_CUSTOM_HEADERS": "{\"x-ai-app-id\":\"claude-code\"}"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ai-proxy-tool-event session_start claude-code"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ai-proxy-tool-event session_stop claude-code"
+          }
+        ]
+      }
+    ]
+  }
+}

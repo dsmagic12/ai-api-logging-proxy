@@ -1,0 +1,17 @@
+# Example ~/.codex/config.toml layer.
+# Codex CLI and IDE extension share this configuration.
+model_provider = "company_proxy"
+model = "gpt-5.4"
+
+[model_providers.company_proxy]
+name = "Company AI Proxy"
+base_url = "http://localhost:8787/openai/v1"
+env_key = "AI_PROXY_TOKEN"
+wire_api = "responses"
+
+[model_providers.company_proxy.http_headers]
+"x-ai-app-id" = "codex"
+
+[model_providers.company_proxy.env_http_headers]
+"x-ai-user-id" = "AI_PROXY_USER_ID"
+"x-ai-team-id" = "AI_PROXY_TEAM_ID"
