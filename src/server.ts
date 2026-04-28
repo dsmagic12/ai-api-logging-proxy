@@ -346,4 +346,8 @@ app.setErrorHandler(async (error, _request, reply) => {
   });
 });
 
+if (!config.openaiApiKey) app.log.warn('OPENAI_API_KEY is not set — OpenAI proxy requests will fail. Add it to your .env file.');
+if (!config.anthropicApiKey) app.log.warn('ANTHROPIC_API_KEY is not set — Anthropic proxy requests will fail. Add it to your .env file.');
+app.log.info(`Config: LOG_RAW_CONTENT=${config.logRawContent} LOG_DIR=${config.logDir} PORT=${config.port}`);
+
 await app.listen({ host: '0.0.0.0', port: config.port });
