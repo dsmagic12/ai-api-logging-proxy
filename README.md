@@ -80,7 +80,7 @@ curl http://localhost:8787/anthropic/v1/messages \
   -H 'content-type: application/json' \
   -H 'anthropic-version: 2023-06-01' \
   -d '{
-    "model": "claude-3-5-haiku-latest",
+    "model": "claude-sonnet-4-6",
     "max_tokens": 128,
     "stream": true,
     "messages": [{ "role": "user", "content": "Say hello in five words." }]
