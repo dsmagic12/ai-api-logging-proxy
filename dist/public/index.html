@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI API Logging Proxy Preview</title>
+    <title>AI API Logging Proxy</title>
     <meta
       name="description"
-      content="Working preview for a Node.js proxy that routes OpenAI and Anthropic API calls while logging streaming usage."
+      content="Dashboard for the AI API logging proxy — live token usage, latency, and coaching signals from OpenAI and Anthropic API calls."
     />
     <link rel="preconnect" href="https://api.fontshare.com" />
     <link
@@ -26,12 +26,12 @@
         </svg>
         <div>
           <strong>AI Proxy</strong>
-          <span>stream logging preview</span>
+          <span>logging dashboard</span>
         </div>
       </div>
-      <nav aria-label="Preview sections">
+      <nav aria-label="Page sections">
         <a href="#stream">Stream</a>
-        <a href="#logs">Logs</a>
+        <a href="#dashboard">Dashboard</a>
         <a href="#schema">Schema</a>
       </nav>
       <button class="theme-button" data-theme-toggle type="button" aria-label="Switch color theme">
@@ -45,14 +45,14 @@
           <p class="eyebrow">Provider-compatible gateway</p>
           <h1>Route model calls and coding-agent sessions through one place.</h1>
           <p>
-            This preview simulates OpenAI, Anthropic, Claude Code, and Codex capture paths: streaming
-            response logs, tool-session events, token metrics, and coaching signals.
+            This proxy captures OpenAI and Anthropic API traffic, logs token usage, latency, and
+            attribution to SQLite, and surfaces coaching signals for developer tool sessions.
           </p>
           <div class="hero-actions">
-            <button class="primary-action" id="run-openai" type="button" data-testid="button-run-openai">
+            <button class="primary-action" id="run-openai" type="button">
               Run OpenAI stream
             </button>
-            <button class="secondary-action" id="run-anthropic" type="button" data-testid="button-run-anthropic">
+            <button class="secondary-action" id="run-anthropic" type="button">
               Run Anthropic stream
             </button>
           </div>
@@ -60,11 +60,11 @@
         <aside class="status-panel" aria-label="Proxy health">
           <div class="status-row">
             <span>Health</span>
-            <strong id="health-status" data-testid="status-health">Checking…</strong>
+            <strong id="health-status">Checking…</strong>
           </div>
           <div class="status-row">
             <span>Mode</span>
-            <strong>Mock stream</strong>
+            <strong>SQLite logging</strong>
           </div>
           <div class="status-row">
             <span>Routes</span>
@@ -73,26 +73,26 @@
         </aside>
       </section>
 
-      <section class="metrics" aria-label="Example usage metrics">
+      <section class="metrics" aria-label="Aggregate usage metrics">
+        <article>
+          <span class="metric-label">Total requests</span>
+          <strong id="metric-requests">—</strong>
+          <small>all time</small>
+        </article>
         <article>
           <span class="metric-label">Input tokens</span>
-          <strong id="metric-input" data-testid="text-input-tokens">1,248</strong>
-          <small>prompt + context</small>
+          <strong id="metric-input">—</strong>
+          <small>total logged</small>
         </article>
         <article>
-          <span class="metric-label">Output tokens</span>
-          <strong id="metric-output" data-testid="text-output-tokens">72</strong>
-          <small>streamed answer</small>
-        </article>
-        <article>
-          <span class="metric-label">First token</span>
-          <strong id="metric-first-token" data-testid="text-first-token">318 ms</strong>
+          <span class="metric-label">Avg first token</span>
+          <strong id="metric-first-token">—</strong>
           <small>latency signal</small>
         </article>
         <article>
-          <span class="metric-label">Coaching signal</span>
-          <strong id="metric-signal" data-testid="text-coaching-signal">High context ratio</strong>
-          <small>review candidate</small>
+          <span class="metric-label">Coaching signals</span>
+          <strong id="metric-signals">—</strong>
+          <small>tool sessions flagged</small>
         </article>
       </section>
 
@@ -102,33 +102,93 @@
             <p class="eyebrow">Live stream inspector</p>
             <h2>Watch chunks pass through the proxy</h2>
           </div>
-          <span id="stream-state" class="pill" data-testid="status-stream">Idle</span>
+          <span id="stream-state" class="pill">Idle</span>
         </div>
         <div class="stream-grid">
           <article class="stream-card">
             <h3>Reconstructed response</h3>
-            <p id="response-output" class="response-output" data-testid="text-response-output">
+            <p id="response-output" class="response-output">
               Choose a provider to start the simulated stream.
             </p>
           </article>
           <article class="stream-card raw-card">
             <h3>Raw SSE events</h3>
-            <pre id="raw-events" data-testid="text-raw-events">No events yet.</pre>
+            <pre id="raw-events">No events yet.</pre>
           </article>
         </div>
       </section>
 
-      <section id="logs" class="logs-section">
+      <section id="dashboard" class="dashboard-section">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Audit records</p>
-            <h2>JSONL-style records for analytics</h2>
+            <p class="eyebrow">Live data</p>
+            <h2>Audit records &amp; tool events</h2>
           </div>
-          <button class="secondary-action compact" id="refresh-logs" type="button" data-testid="button-refresh-logs">
-            Refresh samples
-          </button>
         </div>
-        <div class="log-list" id="log-list" data-testid="list-log-records"></div>
+
+        <div class="tab-bar" role="tablist">
+          <button class="tab-btn active" data-tab="logs" role="tab" aria-selected="true">API Logs</button>
+          <button class="tab-btn" data-tab="tool-events" role="tab" aria-selected="false">Tool Events</button>
+        </div>
+
+        <div class="filter-bar">
+          <div class="filter-group" id="filters-logs">
+            <select id="filter-provider" aria-label="Provider">
+              <option value="">All providers</option>
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic</option>
+            </select>
+            <input type="text" id="filter-model" placeholder="Model…" aria-label="Model">
+            <input type="text" id="filter-search" placeholder="Search user, team, app…" aria-label="Search">
+            <div class="date-range">
+              <input type="date" id="filter-from" aria-label="From date">
+              <span aria-hidden="true">–</span>
+              <input type="date" id="filter-to" aria-label="To date">
+            </div>
+          </div>
+          <div class="filter-group hidden" id="filters-tool-events">
+            <select id="filter-tool" aria-label="Tool">
+              <option value="">All tools</option>
+              <option value="claude-code">Claude Code</option>
+              <option value="codex">Codex</option>
+            </select>
+            <select id="filter-event-type" aria-label="Event type">
+              <option value="">All event types</option>
+              <option value="session_start">session_start</option>
+              <option value="session_stop">session_stop</option>
+              <option value="prompt">prompt</option>
+              <option value="response">response</option>
+              <option value="tool_use">tool_use</option>
+              <option value="file_edit">file_edit</option>
+              <option value="command">command</option>
+              <option value="error">error</option>
+              <option value="heartbeat">heartbeat</option>
+            </select>
+            <input type="text" id="filter-session" placeholder="Session ID…" aria-label="Session ID">
+            <div class="date-range">
+              <input type="date" id="filter-te-from" aria-label="From date">
+              <span aria-hidden="true">–</span>
+              <input type="date" id="filter-te-to" aria-label="To date">
+            </div>
+          </div>
+        </div>
+
+        <div class="results-bar">
+          <span id="results-summary" class="results-summary">Loading…</span>
+          <select id="page-size" aria-label="Records per page">
+            <option value="25">25 / page</option>
+            <option value="50" selected>50 / page</option>
+            <option value="100">100 / page</option>
+          </select>
+        </div>
+
+        <div class="record-list" id="record-list" role="region" aria-live="polite" aria-label="Records"></div>
+
+        <div class="pagination-bar">
+          <button class="secondary-action compact" id="page-prev" disabled>← Prev</button>
+          <span id="page-indicator">—</span>
+          <button class="secondary-action compact" id="page-next" disabled>Next →</button>
+        </div>
       </section>
 
       <section id="schema" class="schema-section">
