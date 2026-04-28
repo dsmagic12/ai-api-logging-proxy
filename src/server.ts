@@ -18,6 +18,7 @@ import { redactJson, summarizeRequestBody } from './utils/redact.js';
 import type { ToolEventRecord } from './types.js';
 import { claudeCodeSettings, codexConfig, shellWrappers } from './tooling/configSnippets.js';
 import { detectDependencyLoop } from './tooling/dependencyLoopDetector.js';
+import { queryLogs, queryToolEvents, queryStats } from './db/queries.js';
 
 const app = Fastify({
   logger: {
@@ -198,6 +199,42 @@ app.post('/demo/dependency-loop', async (request, reply) => {
   });
 });
 
+app.get('/api/stats', async () => {
+  return queryStats();
+});
+
+app.get('/api/logs', async (request) => {
+  const q = request.query as Record<string, string>;
+  return queryLogs({
+    provider: q.provider || undefined,
+    model: q.model || undefined,
+    user_id: q.user_id || undefined,
+    team_id: q.team_id || undefined,
+    app_id: q.app_id || undefined,
+    from: q.from || undefined,
+    to: q.to || undefined,
+    search: q.search || undefined,
+    limit: q.limit ? Number(q.limit) : undefined,
+    offset: q.offset ? Number(q.offset) : undefined
+  });
+});
+
+app.get('/api/tool-events', async (request) => {
+  const q = request.query as Record<string, string>;
+  return queryToolEvents({
+    tool: q.tool || undefined,
+    event_type: q.event_type || undefined,
+    session_id: q.session_id || undefined,
+    user_id: q.user_id || undefined,
+    team_id: q.team_id || undefined,
+    from: q.from || undefined,
+    to: q.to || undefined,
+    search: q.search || undefined,
+    limit: q.limit ? Number(q.limit) : undefined,
+    offset: q.offset ? Number(q.offset) : undefined
+  });
+});
+
 app.get('/tooling/config', async (request) => {
   const query = request.query as { proxy_base_url?: string };
   const proxyBaseUrl = query.proxy_base_url || `http://localhost:${config.port}`;
@@ -254,6 +291,7 @@ app.addHook('preHandler', async (request, reply) => {
   if (
     request.url === '/' ||
     request.url.startsWith('/public/') ||
+    request.url.startsWith('/api/') ||
     request.url.startsWith('/demo/') ||
     request.url.startsWith('/tooling/config') ||
     request.url === '/healthz'
@@ -307,5 +345,9 @@ app.setErrorHandler(async (error, _request, reply) => {
     message: error instanceof Error ? error.message : String(error)
   });
 });
+
+if (!config.openaiApiKey) app.log.warn('OPENAI_API_KEY is not set — OpenAI proxy requests will fail. Add it to your .env file.');
+if (!config.anthropicApiKey) app.log.warn('ANTHROPIC_API_KEY is not set — Anthropic proxy requests will fail. Add it to your .env file.');
+app.log.info(`Config: LOG_RAW_CONTENT=${config.logRawContent} LOG_DIR=${config.logDir} PORT=${config.port}`);
 
 await app.listen({ host: '0.0.0.0', port: config.port });

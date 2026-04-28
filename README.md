@@ -18,7 +18,7 @@ Anthropic requests should include an `anthropic-version` header, and this starte
 
 ```bash
 npm install
-cp .env.example .env
+cp .env.local .env
 # Edit .env and add provider keys
 npm run dev
 ```
@@ -127,36 +127,50 @@ The same `user` field in OpenAI request bodies is also captured when present.
 
 ## Audit output
 
-The default logger writes JSONL files under `logs/ai-api-YYYY-MM-DD.jsonl`.
+All records are written to a SQLite database at `logs/ai-proxy.db` (configurable via `LOG_DIR`). The database is created automatically on first run with WAL mode enabled.
 
-Tooling events are written under `logs/ai-tool-events-YYYY-MM-DD.jsonl`.
+Two tables are written:
 
-Representative record:
+| Table | Contents |
+| --- | --- |
+| `ai_request_log` | One row per proxied provider request: tokens, latency, attribution, request/response shape |
+| `ai_tool_events` | One row per Claude Code or Codex lifecycle event: session, command, file edit, coaching signals |
+
+Representative `ai_request_log` row:
 
 ```json
 {
   "id": "proxy_request_id",
-  "timestamp": "2026-04-27T22:17:00.000Z",
+  "ts": "2026-04-27T22:17:00.000Z",
   "provider": "openai",
-  "method": "POST",
-  "path": "/v1/chat/completions",
   "model": "gpt-4o-mini",
-  "stream": true,
+  "stream": 1,
   "status_code": 200,
-  "provider_request_id": "req_...",
   "duration_ms": 1234,
   "first_token_ms": 350,
   "user_id": "employee@example.com",
   "team_id": "regulatory-writing",
   "app_id": "internal-drafting-tool",
-  "usage": {
-    "input_tokens": 1000,
-    "output_tokens": 250,
-    "total_tokens": 1250,
-    "cached_tokens": 600,
-    "reasoning_tokens": 0
-  }
+  "input_tokens": 1000,
+  "output_tokens": 250,
+  "cached_tokens": 600
 }
+```
+
+## Dashboard
+
+Open `http://localhost:8787` to access the owner dashboard. It provides:
+
+- **Aggregate metrics** — total requests, total input tokens, average first-token latency, and coaching signal count, pulled live from `/api/stats`.
+- **API Logs tab** — paginated list of provider request records, filterable by provider, model, free-text search (user, team, app), and date range.
+- **Tool Events tab** — paginated list of Claude Code / Codex session events, filterable by tool, event type, session ID, and date range. Rows with coaching signals are highlighted with the signal code and severity.
+
+The dashboard queries three read-only endpoints that are always auth-exempt:
+
+```
+GET /api/stats
+GET /api/logs?provider=&model=&search=&from=&to=&limit=50&offset=0
+GET /api/tool-events?tool=&event_type=&session_id=&from=&to=&limit=50&offset=0
 ```
 
 ## Content logging
@@ -174,35 +188,49 @@ For a regulated or enterprise environment, treat raw prompt and completion loggi
 
 ## Analytics schema
 
-Use JSONL only for development. For production, write to Postgres, BigQuery, Snowflake, or your internal lakehouse.
-
-Suggested fact table:
+The embedded SQLite schema matches the production shape described below. For high-volume deployments, write to Postgres, BigQuery, Snowflake, or your internal lakehouse using the same column names.
 
 ```sql
 create table ai_request_log (
   id text primary key,
-  ts timestamptz not null,
+  ts text not null,
   provider text not null,
   model text,
   user_id text,
   team_id text,
   app_id text,
   path text,
-  stream boolean,
-  status_code int,
+  stream integer,
+  status_code integer,
   provider_request_id text,
-  duration_ms int,
-  first_token_ms int,
-  input_tokens int,
-  output_tokens int,
-  total_tokens int,
-  cached_tokens int,
-  reasoning_tokens int,
-  request_bytes int,
-  response_bytes int,
-  request_summary jsonb,
-  response_summary jsonb,
-  error jsonb
+  duration_ms integer,
+  first_token_ms integer,
+  input_tokens integer,
+  output_tokens integer,
+  total_tokens integer,
+  cached_tokens integer,
+  reasoning_tokens integer,
+  request_bytes integer,
+  response_bytes integer,
+  request_summary text,   -- JSON
+  response_summary text,  -- JSON
+  error text              -- JSON
+);
+
+create table ai_tool_events (
+  id text primary key,
+  ts text not null,
+  tool text not null,     -- 'claude-code' | 'codex' | 'unknown'
+  event_type text not null,
+  user_id text,
+  team_id text,
+  app_id text,
+  session_id text,
+  cwd text,
+  repo text,
+  model text,
+  metadata text,          -- JSON
+  coaching_signals text   -- JSON array of CoachingSignal objects
 );
 ```
 
@@ -237,5 +265,5 @@ Useful coaching metrics:
 - This starter handles JSON request bodies. Multipart file endpoints need separate streaming upload handling.
 - It logs reconstructed text output but not structured tool-call arguments by default.
 - It does not yet implement per-user rate limiting or budget enforcement.
-- It does not include a dashboard; use the emitted JSONL or database sink as the source.
+- The SQLite database accumulates all records in a single file with no built-in retention policy. For large deployments, migrate to an external database or add a periodic cleanup job.
 - It does not transform request or response schemas; it is intended as a transparent proxy.
