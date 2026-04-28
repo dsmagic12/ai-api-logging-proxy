@@ -23,6 +23,20 @@ cp .env.example .env
 npm run dev
 ```
 
+The server automatically loads `.env` from the project root. A minimal local file looks like:
+
+```dotenv
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+If you use `npm start`, rebuild after changing source:
+
+```bash
+npm run build
+npm start
+```
+
 Health check:
 
 ```bash
