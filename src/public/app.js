@@ -158,6 +158,14 @@ function fmtTs(ts) {
   } catch { return ts; }
 }
 
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function badge(text, variant = '') {
   const span = document.createElement('span');
   span.className = `badge${variant ? ` badge-${variant}` : ''}`;
@@ -170,6 +178,37 @@ function renderLogRecord(r) {
   card.className = 'record-card';
 
   const isError = r.status_code >= 400 || r.error;
+  const resSummary = r.response_summary && typeof r.response_summary === 'object' ? r.response_summary : {};
+  const reqSummary = r.request_summary && typeof r.request_summary === 'object' ? r.request_summary : {};
+
+  // Prompt: present when LOG_RAW_CONTENT=true
+  const messages = Array.isArray(reqSummary.body?.messages) ? reqSummary.body.messages : null;
+  const lastUserContent = messages ? [...messages].reverse().find(m => m?.role === 'user')?.content : null;
+  const promptText = typeof lastUserContent === 'string' ? lastUserContent : null;
+
+  // Shape: present when LOG_RAW_CONTENT=false
+  const shape = reqSummary.content_shape ?? null;
+  const shapeText = shape ? [
+    shape.message_count != null && `${shape.message_count} msg`,
+    Array.isArray(shape.roles) && shape.roles.join(', '),
+    shape.approx_chars != null && `~${Number(shape.approx_chars).toLocaleString()} chars`,
+  ].filter(Boolean).join(' · ') : null;
+
+  // Response text: captured from stream observer regardless of LOG_RAW_CONTENT
+  const responseText = typeof resSummary.text === 'string' ? resSummary.text : null;
+
+  const contentParts = [];
+  if (promptText) {
+    contentParts.push(`<div class="content-block"><span class="content-label">Prompt</span><p class="content-text">${escHtml(promptText)}</p></div>`);
+  } else if (shapeText) {
+    contentParts.push(`<div class="content-block"><span class="content-label">Request shape</span><p class="content-text">${escHtml(shapeText)}</p></div>`);
+  }
+  if (responseText) {
+    contentParts.push(`<div class="content-block"><span class="content-label">Response</span><p class="content-text">${escHtml(responseText)}</p></div>`);
+  }
+  const contentHtml = contentParts.length
+    ? `<details class="record-details"><summary>Content</summary>${contentParts.join('')}</details>`
+    : '';
 
   card.innerHTML = `
     <div class="record-header">
@@ -177,9 +216,9 @@ function renderLogRecord(r) {
       <time class="record-time" datetime="${r.ts}">${fmtTs(r.ts)}</time>
     </div>
     <div class="record-meta">
-      ${r.user_id ? `<span>${r.user_id}</span>` : ''}
-      ${r.team_id ? `<span>${r.team_id}</span>` : ''}
-      ${r.app_id ? `<span>${r.app_id}</span>` : ''}
+      ${r.user_id ? `<span>${escHtml(r.user_id)}</span>` : ''}
+      ${r.team_id ? `<span>${escHtml(r.team_id)}</span>` : ''}
+      ${r.app_id ? `<span>${escHtml(r.app_id)}</span>` : ''}
     </div>
     <div class="record-stats">
       ${r.input_tokens != null ? `<span><strong>${Number(r.input_tokens).toLocaleString()}</strong> in</span>` : ''}
@@ -189,7 +228,8 @@ function renderLogRecord(r) {
       ${r.first_token_ms != null ? `<span>TTFT ${r.first_token_ms} ms</span>` : ''}
       ${r.status_code ? `<span class="${isError ? 'stat-error' : ''}">${r.status_code}</span>` : ''}
     </div>
-    ${isError && r.error ? `<div class="record-error">${JSON.stringify(r.error).slice(0, 200)}</div>` : ''}
+    ${isError && r.error ? `<div class="record-error">${escHtml(JSON.stringify(r.error).slice(0, 200))}</div>` : ''}
+    ${contentHtml}
   `;
 
   const badgesEl = card.querySelector('.record-badges');
